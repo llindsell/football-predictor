@@ -12,7 +12,7 @@ export async function fetchAPI(endpoint: string, options: RequestInit = {}) {
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(error.message || 'An error occurred');
+        throw new Error(error.detail || error.message || 'An error occurred');
     }
 
     return response.json();

@@ -55,6 +55,9 @@ export default function Dashboard() {
         const existingPick = picks.find(p => p.game_id === gameId);
         const isSamePick = existingPick?.selected_team_id === teamId;
 
+        // Store previous state for revert
+        const previousPicks = [...picks];
+
         // Optimistic update
         if (isSamePick) {
             // Remove pick
@@ -85,7 +88,13 @@ export default function Dashboard() {
             }
         } catch (error) {
             console.error('Failed to update pick', error);
-            // Revert on error (todo: implement proper revert logic)
+            // Revert to previous state
+            setPicks(previousPicks);
+
+            // Show error message to user
+            if (error instanceof Error) {
+                alert(error.message);
+            }
         }
     };
 

@@ -12,14 +12,30 @@ export default function GameCard({ game, currentPick, onPick }: GameCardProps) {
     const isHomePicked = currentPick?.selected_team_id === game.home_team.id;
     const isAwayPicked = currentPick?.selected_team_id === game.away_team.id;
 
+    // Check if game has started
+    const hasGameStarted = () => {
+        if (game.status !== 'scheduled') return true;
+        if (game.game_time) {
+            const gameTime = new Date(game.game_time);
+            const now = new Date();
+            return now >= gameTime;
+        }
+        return false;
+    };
+
+    const gameStarted = hasGameStarted();
+
     const TeamButton = ({ team, isPicked, spread }: { team: any, isPicked: boolean, spread?: number }) => (
         <button
-            onClick={() => onPick(game.id, team.id)}
+            onClick={() => !gameStarted && onPick(game.id, team.id)}
+            disabled={gameStarted}
             className={clsx(
                 "flex flex-col items-center p-4 rounded-lg border-2 transition-all w-full",
-                isPicked
+                gameStarted && "opacity-50 cursor-not-allowed",
+                !gameStarted && isPicked
                     ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                    : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                    : !gameStarted && "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600",
+                gameStarted && "border-gray-200 dark:border-gray-700"
             )}
         >
             <div className="relative w-12 h-12 mb-2">
