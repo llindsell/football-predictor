@@ -27,6 +27,8 @@ def read_week_games(week_id: int, session: Session = Depends(get_session)):
             "spread": game.spread,
             "home_score": game.home_score,
             "away_score": game.away_score,
-            "status": game.status
+            "status": game.status,
+            "game_time": game.game_time,
+            "over_under": game.over_under
         })
     return result

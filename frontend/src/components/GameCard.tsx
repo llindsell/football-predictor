@@ -44,7 +44,12 @@ export default function GameCard({ game, currentPick, onPick }: GameCardProps) {
             {game.game_time && (
                 <div className="absolute top-2 left-0 right-0 text-center">
                     <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">
-                        {new Date(game.game_time).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: 'numeric' })}
+                        {(() => {
+                            const date = new Date(game.game_time);
+                            const day = date.toLocaleDateString('en-US', { weekday: 'short' });
+                            const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+                            return `${day} @ ${time}`;
+                        })()}
                     </span>
                 </div>
             )}

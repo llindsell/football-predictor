@@ -95,9 +95,9 @@ export default function Dashboard() {
 
     return (
         <div className="max-w-md mx-auto pb-20">
-            <div className="px-4 mb-4">
+            <div className="px-4 mb-4 pt-4">
                 {selectedWeek && (
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                    <h2 className="inline-block px-4 py-1 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-sm font-bold">
                         Week {selectedWeek.week_number}
                     </h2>
                 )}
