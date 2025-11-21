@@ -2,6 +2,33 @@ import requests
 from bs4 import BeautifulSoup
 import json
 import re
+import os
+import time
+import sys
+from datetime import datetime, timedelta
+
+# Add parent directory to path to import app modules
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+from sqlmodel import Session, select
+from app.database import engine
+from app.models import Team, Game, Week
+
+def get_current_week():
+    # Start date: September 2, 2025 (Monday before Week 1)
+    start_date = datetime(2025, 9, 2)
+    today = datetime.now()
+    
+    # Calculate days passed
+    days_passed = (today - start_date).days
+    
+    # Calculate week number (integer division by 7, plus 1)
+    # If days_passed is negative (before season), default to Week 1
+    if days_passed < 0:
+        return 1
+        
+    week_number = (days_passed // 7) + 1
+    return week_number
 
 def scrape_yahoo_nfl():
     url = "https://sports.yahoo.com/nfl/scoreboard/"
@@ -9,55 +36,49 @@ def scrape_yahoo_nfl():
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
     }
 
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-    except requests.RequestException as e:
-        print(f"Error fetching URL: {e}")
-        return
+    cache_file = "yahoo_nfl.html"
+    content = None
 
-    soup = BeautifulSoup(response.content, "html.parser")
+    if os.path.exists(cache_file):
+        last_modified = os.path.getmtime(cache_file)
+        if time.time() - last_modified < 86400:  # 24 hours
+            print(f"Using cached file: {cache_file}")
+            with open(cache_file, "rb") as f:
+                content = f.read()
+
+    if content is None:
+        print("Fetching from URL...")
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            content = response.content
+            with open(cache_file, "wb") as f:
+                f.write(content)
+        except requests.RequestException as e:
+            print(f"Error fetching URL: {e}")
+            return
+
+    soup = BeautifulSoup(content, "html.parser")
     
     # Parse JSON data for game times
     game_times = {}
     try:
-        # Find the script tag containing root.App.main
-        # We look for the string "root.App.main ="
         script_tags = soup.find_all("script")
         for script in script_tags:
             if script.string and "root.App.main =" in script.string:
-                # Extract the JSON object
-                # It usually starts after "root.App.main = " and ends before ";" or new line
-                content = script.string
+                content_str = script.string
                 start_marker = "root.App.main ="
-                start_index = content.find(start_marker)
+                start_index = content_str.find(start_marker)
                 if start_index != -1:
                     start_index += len(start_marker)
-                    # Find the end of the JSON object. It's a bit tricky, but usually it's followed by a semicolon
-                    # We can try to find the first semicolon after the start
-                    # However, the JSON might contain semicolons. 
-                    # A safer way might be to look for the next variable assignment or end of script
-                    # Let's try to find the matching brace if possible, or just take a large chunk and try to parse?
-                    # Actually, looking at the dump, it seems to be `root.App.main = {...};`
-                    # So we can strip until the last semicolon
-                    
-                    # Let's try to find the end of the line or semicolon
-                    end_index = content.find(";\n", start_index)
+                    end_index = content_str.find(";\n", start_index)
                     if end_index == -1:
-                        end_index = content.find(";", start_index)
+                        end_index = content_str.find(";", start_index)
                     
                     if end_index != -1:
-                        json_str = content[start_index:end_index].strip()
+                        json_str = content_str[start_index:end_index].strip()
                         try:
                             data = json.loads(json_str)
-                            # Navigate to game data
-                            # Structure seems to be flat or nested under context -> dispatcher -> stores -> ScoreboardStore -> games
-                            # But we saw "nfl.g.20251120034": {...} in the dump.
-                            # It might be in `context.dispatcher.stores.PageStore.pageData.entityData` or similar?
-                            # Actually, the dump showed "nfl.g.20251120034":{...} which suggests it's a key in a large object.
-                            # Let's traverse the whole JSON to find keys starting with "nfl.g."
-                            
-                            # Helper to recursively search for game objects
                             def extract_game_times(obj):
                                 if isinstance(obj, dict):
                                     for k, v in obj.items():
@@ -70,122 +91,144 @@ def scrape_yahoo_nfl():
                                         extract_game_times(item)
                             
                             extract_game_times(data)
-                            
                         except json.JSONDecodeError:
                             pass
     except Exception as e:
-        # print(f"Error parsing JSON: {e}")
+        print(f"Error parsing JSON: {e}")
         pass
 
-    games = []
-    
-    # Find all game items
-    # Selector: li with data-tst starting with "GameItem-"
-    game_items = soup.find_all("li", {"data-tst": re.compile(r"^GameItem-")})
+    current_week_num = get_current_week()
+    print(f"Current Week: {current_week_num}")
 
-    for item in game_items:
-        try:
-            game_data = {}
-            
-            # Game ID
-            game_id = item.get("data-tst", "").replace("GameItem-", "")
-            
-            # Game URL
-            link_tag = item.find("a", class_="gamecard-pregame", href=True)
-            if link_tag:
-                game_data["game_url"] = "https://sports.yahoo.com" + link_tag["href"]
-                # Extract date from URL or ID if possible
-                match = re.search(r"(\d{8})", link_tag["href"])
-                if match:
-                    date_str = match.group(1)
-                    # Format: YYYYMMDD -> YYYY-MM-DD
-                    game_data["game_date"] = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
-                else:
-                    game_data["game_date"] = None
-            else:
-                game_data["game_url"] = None
-                game_data["game_date"] = None
+    with Session(engine) as session:
+        # Find or create Week
+        # We assume the season is 2025 based on the prompt context
+        season = 2025
+        week = session.exec(select(Week).where(Week.season == season, Week.week_number == current_week_num)).first()
+        if not week:
+            # If week doesn't exist, create it with dummy dates for now or calculate them
+            # Start date = Sept 2 + (week-1)*7 days
+            week_start = datetime(2025, 9, 2) + timedelta(weeks=current_week_num - 1)
+            week_end = week_start + timedelta(days=6)
+            week = Week(
+                season=season,
+                week_number=current_week_num,
+                start_date=week_start.strftime("%Y-%m-%d"),
+                end_date=week_end.strftime("%Y-%m-%d")
+            )
+            session.add(week)
+            session.commit()
+            session.refresh(week)
+            print(f"Created Week {current_week_num}")
+        else:
+            print(f"Found Week {current_week_num}")
 
-            # Teams and Records
-            team_items = item.find_all("li", class_="team")
-            if len(team_items) >= 2:
+        # Find all game items
+        game_items = soup.find_all("li", {"data-tst": re.compile(r"^GameItem-")})
+
+        for item in game_items:
+            try:
+                # Game ID
+                game_id_str = item.get("data-tst", "").replace("GameItem-", "")
+                
+                # Teams
+                team_items = item.find_all("li", class_="team")
+                if len(team_items) < 2:
+                    continue
+
                 # Away Team
                 away_team_item = team_items[0]
                 away_city = away_team_item.find("span", {"data-tst": "first-name"})
                 away_name = away_team_item.find("span", {"data-tst": "last-name"})
                 if away_city and away_name:
-                    game_data["away_team"] = f"{away_city.get_text(strip=True)} {away_name.get_text(strip=True)}"
+                    away_team_name = f"{away_city.get_text(strip=True)} {away_name.get_text(strip=True)}"
                 else:
-                    game_data["away_team"] = "Unknown"
-                
-                # Away Record
-                away_record_div = away_team_item.find_all("div")[-1]
-                game_data["away_team_record"] = away_record_div.get_text(strip=True) if away_record_div else None
+                    continue # Skip if name not found
 
                 # Home Team
                 home_team_item = team_items[1]
                 home_city = home_team_item.find("span", {"data-tst": "first-name"})
                 home_name = home_team_item.find("span", {"data-tst": "last-name"})
                 if home_city and home_name:
-                    game_data["home_team"] = f"{home_city.get_text(strip=True)} {home_name.get_text(strip=True)}"
+                    home_team_name = f"{home_city.get_text(strip=True)} {home_name.get_text(strip=True)}"
                 else:
-                    game_data["home_team"] = "Unknown"
+                    continue # Skip if name not found
 
-                # Home Record
-                home_record_div = home_team_item.find_all("div")[-1]
-                game_data["home_team_record"] = home_record_div.get_text(strip=True) if home_record_div else None
-            else:
+                # Find Teams in DB
+                away_team = session.exec(select(Team).where(Team.name == away_team_name)).first()
+                home_team = session.exec(select(Team).where(Team.name == home_team_name)).first()
+
+                if not away_team:
+                    print(f"Warning: Away team '{away_team_name}' not found in DB.")
+                    continue
+                if not home_team:
+                    print(f"Warning: Home team '{home_team_name}' not found in DB.")
+                    continue
+
+                # Odds / Spread
+                spread = 0.0
+                odds_div = item.find("div", class_="odds", title=True)
+                if odds_div and "total" not in odds_div.get("class", []):
+                    raw_odds = odds_div.get_text(strip=True)
+                    # Extract number: "-5" or "+3.5"
+                    odds_match = re.search(r"([+-]?\d+(\.\d+)?)", raw_odds.split()[-1])
+                    if odds_match:
+                        try:
+                            spread = float(odds_match.group(1))
+                        except ValueError:
+                            pass
+
+                # Over/Under
+                over_under = None
+                ou_div = item.select_one("div.odds.total")
+                if ou_div:
+                    raw_ou = ou_div.get_text(strip=True)
+                    ou_match = re.search(r"(\d+(\.\d+)?)", raw_ou)
+                    if ou_match:
+                        try:
+                            over_under = float(ou_match.group(1))
+                        except ValueError:
+                            pass
+
+                # Game Time
+                game_time_str = None
+                if game_id_str in game_times:
+                    game_time_str = game_times[game_id_str]
+
+                # Find existing game or create new
+                # We match on week, home_team, away_team
+                game = session.exec(select(Game).where(
+                    Game.week_id == week.id,
+                    Game.home_team_id == home_team.id,
+                    Game.away_team_id == away_team.id
+                )).first()
+
+                if not game:
+                    game = Game(
+                        week_id=week.id,
+                        home_team_id=home_team.id,
+                        away_team_id=away_team.id,
+                        spread=spread,
+                        over_under=over_under,
+                        game_time=game_time_str,
+                        status="scheduled"
+                    )
+                    session.add(game)
+                    print(f"Added game: {away_team.name} @ {home_team.name}")
+                else:
+                    # Update existing game
+                    game.spread = spread
+                    game.over_under = over_under
+                    game.game_time = game_time_str
+                    session.add(game)
+                    print(f"Updated game: {away_team.name} @ {home_team.name}")
+
+            except Exception as e:
+                print(f"Error processing game item: {e}")
                 continue
-
-            # Odds
-            odds_div = item.find("div", class_="odds", title=True)
-            if odds_div and "total" not in odds_div.get("class", []):
-                raw_odds = odds_div.get_text(strip=True)
-                # Extract just the number (e.g., "-5" from "BUF -5")
-                # Regex to find a number (integer or decimal, positive or negative) at the end of the string
-                # or just look for the last number
-                odds_match = re.search(r"([+-]?\d+(\.\d+)?)", raw_odds.split()[-1])
-                if odds_match:
-                    game_data["odds"] = odds_match.group(1)
-                else:
-                    game_data["odds"] = raw_odds # Fallback
-            else:
-                game_data["odds"] = None
-
-            # Over/Under
-            # div.odds.total
-            # Use CSS selector to match multiple classes
-            ou_div = item.select_one("div.odds.total")
-            if ou_div:
-                raw_ou = ou_div.get_text(strip=True)
-                # Extract just the number
-                ou_match = re.search(r"(\d+(\.\d+)?)", raw_ou)
-                if ou_match:
-                    game_data["over_under"] = ou_match.group(1)
-                else:
-                    game_data["over_under"] = raw_ou.replace("O/U", "").strip()
-            else:
-                game_data["over_under"] = None
-
-            # Game Time
-            # Use the game_id to look up start_time in the parsed JSON
-            if game_id in game_times:
-                # Time format in JSON: "Fri, 21 Nov 2025 01:15:00 +0000"
-                # We want to convert this to something more readable or keep it as is?
-                # The user mentioned "5:15 PM PST".
-                # Let's keep the raw string for now, or try to parse it if needed.
-                # But simply returning the string found in JSON is a good start.
-                game_data["game_time"] = game_times[game_id]
-            else:
-                game_data["game_time"] = "TBD"
-                
-            games.append(game_data)
-
-        except Exception as e:
-            # print(f"Error parsing game item: {e}")
-            continue
-
-    print(json.dumps(games, indent=2))
+        
+        session.commit()
 
 if __name__ == "__main__":
     scrape_yahoo_nfl()
+
