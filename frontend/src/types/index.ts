@@ -42,3 +42,10 @@ export interface LeaderboardEntry {
     total_picks: number;
     win_rate: number;
 }
+
+export interface User {
+    id: number;
+    email: string;
+    name: string;
+    profile_picture?: string;
+}

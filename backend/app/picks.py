@@ -85,3 +85,18 @@ def delete_pick(
     session.commit()
     
     return {"message": "Pick deleted successfully"}
+
+@router.get("/week/{week_id}/users", response_model=List[User])
+def read_users_with_picks(
+    week_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    users = session.exec(
+        select(User)
+        .join(Pick)
+        .join(Game)
+        .where(Game.week_id == week_id)
+        .distinct()
+    ).all()
+    return users

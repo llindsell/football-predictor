@@ -47,7 +47,7 @@ export default function ComparisonCard({ game, myPick, theirPick, theirName }: C
                             label="Picked"
                         />
                     ) : (
-                        <span className="text-xs text-gray-400 italic">No pick</span>
+                        <span className="text-xs text-gray-400 italic">Skipped</span>
                     )}
                 </div>
 
@@ -61,7 +61,7 @@ export default function ComparisonCard({ game, myPick, theirPick, theirName }: C
                             label="Picked"
                         />
                     ) : (
-                        <span className="text-xs text-gray-400 italic">No pick</span>
+                        <span className="text-xs text-gray-400 italic">Skipped</span>
                     )}
                 </div>
             </div>
