@@ -8,7 +8,7 @@ import GameCard from './GameCard';
 
 export default function Dashboard() {
     const { user, token } = useAuth();
-    const [weeks, setWeeks] = useState<Week[]>([]);
+
     const [selectedWeek, setSelectedWeek] = useState<Week | null>(null);
     const [games, setGames] = useState<Game[]>([]);
     const [picks, setPicks] = useState<Pick[]>([]);
@@ -18,7 +18,6 @@ export default function Dashboard() {
         const loadWeeks = async () => {
             try {
                 const data = await fetchAPI('/weeks');
-                setWeeks(data);
                 if (data.length > 0) {
                     setSelectedWeek(data[0]); // Default to first week (or current)
                 }
@@ -96,19 +95,12 @@ export default function Dashboard() {
 
     return (
         <div className="max-w-md mx-auto pb-20">
-            <div className="flex overflow-x-auto p-4 gap-2 no-scrollbar">
-                {weeks.map(week => (
-                    <button
-                        key={week.id}
-                        onClick={() => setSelectedWeek(week)}
-                        className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-medium transition-colors ${selectedWeek?.id === week.id
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                            }`}
-                    >
-                        Week {week.week_number}
-                    </button>
-                ))}
+            <div className="px-4 mb-4">
+                {selectedWeek && (
+                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                        Week {selectedWeek.week_number}
+                    </h2>
+                )}
             </div>
 
             <div className="px-4">

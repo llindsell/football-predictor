@@ -12,7 +12,7 @@ export default function ComparisonPage() {
     const params = useParams();
     const targetUserId = Number(params.userId);
 
-    const [weeks, setWeeks] = useState<Week[]>([]);
+
     const [selectedWeek, setSelectedWeek] = useState<Week | null>(null);
     const [games, setGames] = useState<Game[]>([]);
     const [myPicks, setMyPicks] = useState<Pick[]>([]);
@@ -23,7 +23,6 @@ export default function ComparisonPage() {
         const loadWeeks = async () => {
             try {
                 const data = await fetchAPI('/weeks');
-                setWeeks(data);
                 if (data.length > 0) {
                     setSelectedWeek(data[0]);
                 }
@@ -64,19 +63,12 @@ export default function ComparisonPage() {
             <div className="p-4">
                 <h1 className="text-xl font-bold mb-4">Comparison</h1>
 
-                <div className="flex overflow-x-auto gap-2 no-scrollbar mb-6">
-                    {weeks.map(week => (
-                        <button
-                            key={week.id}
-                            onClick={() => setSelectedWeek(week)}
-                            className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-medium transition-colors ${selectedWeek?.id === week.id
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                                }`}
-                        >
-                            Week {week.week_number}
-                        </button>
-                    ))}
+                <div className="mb-6">
+                    {selectedWeek && (
+                        <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                            Week {selectedWeek.week_number}
+                        </h2>
+                    )}
                 </div>
 
                 {loading ? (

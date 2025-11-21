@@ -8,7 +8,7 @@ router = APIRouter()
 
 @router.get("/", response_model=List[Week])
 def read_weeks(session: Session = Depends(get_session)):
-    weeks = session.exec(select(Week)).all()
+    weeks = session.exec(select(Week).order_by(Week.season.desc(), Week.week_number.desc())).all()
     return weeks
 
 @router.get("/{week_id}/games", response_model=List[dict])
