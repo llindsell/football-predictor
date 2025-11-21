@@ -2,24 +2,31 @@
 
 import { useState, useEffect } from 'react';
 import { fetchAPI } from '@/lib/api';
-import { LeaderboardEntry } from '@/types';
+import { Week, LeaderboardEntry } from '@/types';
 
 export default function LeaderboardPage() {
     const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+    const [currentWeek, setCurrentWeek] = useState<Week | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const loadLeaderboard = async () => {
+        const loadData = async () => {
             try {
-                const data = await fetchAPI('/leaderboard');
-                setLeaderboard(data);
+                const [leaderboardData, weeksData] = await Promise.all([
+                    fetchAPI('/leaderboard'),
+                    fetchAPI('/weeks')
+                ]);
+                setLeaderboard(leaderboardData);
+                if (weeksData.length > 0) {
+                    setCurrentWeek(weeksData[0]);
+                }
             } catch (error) {
-                console.error('Failed to load leaderboard', error);
+                console.error('Failed to load data', error);
             } finally {
                 setLoading(false);
             }
         };
-        loadLeaderboard();
+        loadData();
     }, []);
 
     if (loading) {
@@ -28,7 +35,13 @@ export default function LeaderboardPage() {
 
     return (
         <main className="max-w-md mx-auto p-4">
-            <h1 className="text-2xl font-bold mb-6">Leaderboard</h1>
+            <div className="mb-6">
+                {currentWeek && (
+                    <h2 className="inline-block px-4 py-1 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-sm font-bold">
+                        Week {currentWeek.week_number}
+                    </h2>
+                )}
+            </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
                 <table className="w-full">

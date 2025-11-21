@@ -23,18 +23,8 @@ export default function Header() {
 
     return (
         <header className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-10">
-            <div className="max-w-md mx-auto p-4 flex justify-between items-center">
-                <Link href="/" className="text-xl font-bold">Predictor</Link>
-
-                <nav className="flex items-center gap-4">
-                    <NavLink href="/">Picks</NavLink>
-                    <NavLink href="/compare">Compare</NavLink>
-                    <NavLink href="/leaderboard">Leaderboard</NavLink>
-
-                    {!user && (
-                        <Link href="/login" className="text-blue-600 font-medium text-sm">Login</Link>
-                    )}
-                </nav>
+            <div className="max-w-md mx-auto p-4 flex justify-center items-center">
+                <Link href="/" className="text-xl font-bold">Football Predictor</Link>
             </div>
         </header>
     );

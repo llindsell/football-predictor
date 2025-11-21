@@ -39,7 +39,7 @@ export default function ComparePage() {
 
         const loadUsers = async () => {
             try {
-                const data = await fetchAPI(`/picks/week/${selectedWeek.id}/users`, {
+                const data: User[] = await fetchAPI(`/picks/week/${selectedWeek.id}/users`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 setUsersWithPicks(data);
@@ -88,16 +88,12 @@ export default function ComparePage() {
         <main className="max-w-md mx-auto pb-20">
             <div className="p-4">
                 <div className="flex justify-between items-center mb-6">
-                    <h1 className="text-xl font-bold">Comparison</h1>
-
                     {selectedWeek && (
                         <h2 className="inline-block px-4 py-1 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-sm font-bold">
                             Week {selectedWeek.week_number}
                         </h2>
                     )}
-                </div>
 
-                <div className="mb-6 flex justify-end">
                     <select
                         className="p-2 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
                         value={selectedOpponentId || ''}
